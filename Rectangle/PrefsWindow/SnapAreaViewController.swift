@@ -203,50 +203,72 @@ class SnapAreaViewController: NSViewController {
         if let animationStack = blurFootprintCheckbox.superview as? NSStackView,
            let optionsRow = animationStack.superview as? NSStackView,
            let contentStack = optionsRow.superview as? NSStackView {
-            let stack = NSStackView()
-            stack.orientation = .vertical
-            stack.alignment = .leading
-            stack.spacing = 8
-            let permissionStack = NSStackView()
-            permissionStack.orientation = .vertical
-            permissionStack.alignment = .leading
-            permissionStack.spacing = 8
-            let exampleButton = NSButton(title: "See example…", target: self, action: #selector(showLayoutHelperExample(_:)))
-            exampleButton.bezelStyle = .rounded
-            exampleButton.setContentCompressionResistancePriority(.required, for: .vertical)
-            permissionStack.addArrangedSubview(exampleButton)
-            let helperRow = NSStackView(views: [stack, permissionStack])
-            helperRow.orientation = .horizontal
-            helperRow.alignment = .top
-            helperRow.spacing = 24
+            let section = NSStackView()
+            section.orientation = .vertical
+            section.alignment = .leading
+            section.spacing = 14
+            section.setAccessibilityIdentifier("layoutHelperSection")
             let separator = NSBox()
             separator.boxType = .separator
             contentStack.addArrangedSubview(separator)
-            contentStack.addArrangedSubview(helperRow)
+            contentStack.addArrangedSubview(section)
             separator.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
-            helperRow.leadingAnchor.constraint(equalTo: optionsRow.leadingAnchor).isActive = true
-            helperRow.trailingAnchor.constraint(equalTo: optionsRow.trailingAnchor).isActive = true
-            helperRow.setAccessibilityIdentifier("layoutHelperSection")
-            for (index, title) in ["Layout Helper", "Also after keyboard and menu snaps", "Also for grids with eight or more cells"].enumerated() {
-                let checkbox = NSButton(checkboxWithTitle: title, target: self, action: #selector(toggleLayoutHelper(_:)))
-                checkbox.setContentCompressionResistancePriority(.required, for: .vertical)
-                checkbox.tag = index
-                checkbox.toolTip = "Choose windows to fill remaining spaces, from left to right and top to bottom."
-                stack.addArrangedSubview(checkbox)
-                layoutHelperCheckboxes.append(checkbox)
+            section.leadingAnchor.constraint(equalTo: optionsRow.leadingAnchor).isActive = true
+            section.trailingAnchor.constraint(equalTo: optionsRow.trailingAnchor).isActive = true
+
+            func checkbox(_ title: String, tag: Int) -> NSButton {
+                let button = NSButton(checkboxWithTitle: title, target: self, action: #selector(toggleLayoutHelper(_:)))
+                button.tag = tag
+                button.setContentCompressionResistancePriority(.required, for: .vertical)
+                layoutHelperCheckboxes.append(button)
+                return button
             }
+            let master = checkbox("Layout Helper", tag: 0)
+            let example = NSButton(title: "See example…", target: self, action: #selector(showLayoutHelperExample(_:)))
+            example.bezelStyle = .rounded
+            let spacer = NSView()
+            spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+            let header = NSStackView(views: [master, spacer, example])
+            header.orientation = .horizontal
+            header.alignment = .centerY
+            section.addArrangedSubview(header)
+            header.widthAnchor.constraint(equalTo: section.widthAnchor).isActive = true
+
+            func formRow(_ title: String, content: NSView) {
+                let label = NSTextField(labelWithString: title)
+                label.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+                label.textColor = .secondaryLabelColor
+                label.widthAnchor.constraint(equalToConstant: 116).isActive = true
+                let row = NSStackView(views: [label, content])
+                row.orientation = .horizontal
+                row.alignment = .top
+                row.spacing = 16
+                row.edgeInsets = NSEdgeInsets(top: 0, left: 18, bottom: 0, right: 0)
+                section.addArrangedSubview(row)
+                row.widthAnchor.constraint(equalTo: section.widthAnchor).isActive = true
+            }
+            let options = NSStackView(views: [checkbox("Keyboard and menu snaps", tag: 1),
+                                            checkbox("Grids with eight or more cells", tag: 2)])
+            options.orientation = .vertical
+            options.alignment = .leading
+            options.spacing = 8
+            formRow("Also enable for", content: options)
+
+            let permissionButton = NSButton(title: "Enable previews…", target: self, action: #selector(enableLayoutHelperPreviews(_:)))
+            permissionButton.bezelStyle = .rounded
+            permissionButton.setContentCompressionResistancePriority(.required, for: .vertical)
+            layoutHelperPermissionButton = permissionButton
             let permissionLabel = NSTextField(wrappingLabelWithString: "")
             permissionLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
             permissionLabel.textColor = .secondaryLabelColor
             permissionLabel.setContentCompressionResistancePriority(.required, for: .vertical)
-            permissionLabel.widthAnchor.constraint(equalToConstant: 290).isActive = true
-            permissionStack.addArrangedSubview(permissionLabel)
             layoutHelperPermissionLabel = permissionLabel
-            let permissionButton = NSButton(title: "Enable window previews…", target: self, action: #selector(enableLayoutHelperPreviews(_:)))
-            permissionButton.bezelStyle = .rounded
-            permissionButton.setContentCompressionResistancePriority(.required, for: .vertical)
-            permissionStack.addArrangedSubview(permissionButton)
-            layoutHelperPermissionButton = permissionButton
+            let previews = NSStackView(views: [permissionButton, permissionLabel])
+            previews.orientation = .vertical
+            previews.alignment = .leading
+            previews.spacing = 6
+            formRow("Window previews", content: previews)
+            permissionLabel.widthAnchor.constraint(equalTo: previews.widthAnchor).isActive = true
         }
         refreshLayoutHelperSettings()
         configureBlurAppearance()

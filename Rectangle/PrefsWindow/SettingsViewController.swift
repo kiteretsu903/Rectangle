@@ -1466,17 +1466,23 @@ class SettingsViewController: NSViewController {
             label.setAccessibilityIdentifier(identifier)
             return label
         }
-        parentStack.insertArrangedSubview(divider, at: index + 2)
-        parentStack.insertArrangedSubview(supportLabel(identifier: "windowDividerSupport"), at: index + 3)
+        func supportedPairRow(_ button: NSButton, identifier: String) -> NSStackView {
+            let row = NSStackView(views: [button, supportLabel(identifier: identifier)])
+            row.orientation = .horizontal
+            row.alignment = .centerY
+            row.spacing = 12
+            return row
+        }
+        parentStack.insertArrangedSubview(supportedPairRow(divider, identifier: "windowDividerSupport"), at: index + 2)
         windowDividerCheckbox = divider
         let enhanced = NSButton(checkboxWithTitle: "Enhanced transitions", target: self,
                                 action: #selector(toggleWindowDividerEnhanced(_:)))
         enhanced.setAccessibilityIdentifier("windowDividerEnhanced")
         enhanced.setContentCompressionResistancePriority(.required, for: .vertical)
-        let hint = NSTextField(wrappingLabelWithString: "Uses a temporary screenshot to hide resizing. Requires Screen Recording access.")
+        let hint = NSTextField(labelWithString: "Uses a temporary screenshot to hide resizing. Requires Screen Recording access.")
         hint.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         hint.textColor = .secondaryLabelColor
-        hint.widthAnchor.constraint(equalToConstant: 360).isActive = true
+        hint.setContentCompressionResistancePriority(.required, for: .horizontal)
         hint.setContentCompressionResistancePriority(.required, for: .vertical)
         hint.setContentHuggingPriority(.defaultHigh, for: .vertical)
         let enhancedGroup = NSStackView(views: [enhanced, hint])
@@ -1484,11 +1490,11 @@ class SettingsViewController: NSViewController {
         enhancedGroup.alignment = .leading
         enhancedGroup.spacing = 4
         enhancedGroup.edgeInsets = NSEdgeInsets(top: 0, left: 18, bottom: 0, right: 0)
-        parentStack.insertArrangedSubview(enhancedGroup, at: index + 4)
+        parentStack.insertArrangedSubview(enhancedGroup, at: index + 3)
+        enhancedGroup.widthAnchor.constraint(equalTo: parentStack.widthAnchor).isActive = true
         windowDividerEnhancedCheckbox = enhanced
         refreshWindowDividerEnhanced()
-        parentStack.insertArrangedSubview(fit, at: index + 5)
-        parentStack.insertArrangedSubview(supportLabel(identifier: "windowPairSupport"), at: index + 6)
+        parentStack.insertArrangedSubview(supportedPairRow(fit, identifier: "windowPairSupport"), at: index + 4)
         fitBesideSnappedWindowsCheckbox = fit
     }
 

@@ -31,28 +31,38 @@ enum LayoutHelperPermission {
         previewsSupported && CGPreflightScreenCaptureAccess()
     }
 
-    static func explanationAlert() -> NSAlert {
+    enum Feature { case layoutHelper, windowDivider }
+
+    static func explanationAlert(for feature: Feature = .layoutHelper) -> NSAlert {
         let alert = NSAlert()
         alert.alertStyle = .informational
-        alert.messageText = "Enable window previews for Layout Helper?"
-        alert.informativeText = "Rectangle needs Screen Recording permission to show thumbnails of your open windows. It takes still images for the picker; images are not saved and audio is not captured.\n\nClick Enable Previews to request access. If System Settings opens, turn on Rectangle under Privacy & Security → Screen & System Audio Recording. If Rectangle is missing, click + and select Rectangle in Applications. Reopen Rectangle if macOS asks.\n\nYou can also keep using Layout Helper with app icons and window titles. Window Divider is a separate feature and does not need Screen Recording permission."
-        alert.addButton(withTitle: "Enable Previews")
-        alert.addButton(withTitle: "Use Icons and Titles")
+        switch feature {
+        case .layoutHelper:
+            alert.messageText = "Enable window thumbnails?"
+            alert.informativeText = "Screen Recording access lets Layout Helper show window thumbnails. Otherwise, it uses icons and titles. No images are saved or audio captured."
+            alert.addButton(withTitle: "Enable Previews")
+            alert.addButton(withTitle: "Use Icons and Titles")
+        case .windowDivider:
+            alert.messageText = "Enable enhanced divider transitions?"
+            alert.informativeText = "A temporary screenshot hides window changes while resizing. Requires Screen Recording access; nothing is saved."
+            alert.addButton(withTitle: "Enable Enhanced Transitions")
+            alert.addButton(withTitle: "Use Standard Transitions")
+        }
         return alert
     }
 
     /// Keep the UI responsive while ScreenCaptureKit waits for the system consent dialog.
     /// Enumeration requests access but does not capture images or start a recording.
-    static func guideIfNeeded(completion: @escaping () -> Void = {}) {
+    static func guideIfNeeded(for feature: Feature = .layoutHelper, completion: @escaping () -> Void = {}) {
         guard #available(macOS 14, *), !requesting else { completion(); return }
         requesting = true
         Task { @MainActor in
             defer { requesting = false; completion() }
-            _ = await LayoutHelperPermissionFlow(
+            let outcome = await LayoutHelperPermissionFlow(
                 isAllowed: { previewsAllowed },
                 explain: {
                     NSApp.activate(ignoringOtherApps: true)
-                    return explanationAlert().runModal() == .alertFirstButtonReturn
+                    return explanationAlert(for: feature).runModal() == .alertFirstButtonReturn
                 },
                 request: {
                     NSLog("Layout Helper: requesting ScreenCaptureKit access for %@", Bundle.main.bundleIdentifier ?? "Rectangle")
@@ -70,10 +80,13 @@ enum LayoutHelperPermission {
                     let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!
                     if !NSWorkspace.shared.open(url) {
                         AlertUtil.oneButtonAlert(question: "Enable Screen Recording for Rectangle",
-                            text: "Open System Settings → Privacy & Security → Screen & System Audio Recording, then enable Rectangle. If it is missing, click + and select Rectangle in Applications. Reopen Rectangle if macOS asks. Layout Helper can still use icons and titles.")
+                            text: "Enable Rectangle in System Settings → Privacy & Security → Screen & System Audio Recording.")
                     }
                 }
             ).run()
+            if feature == .windowDivider, outcome == .iconsOnly {
+                Defaults.windowDividerEnhanced.enabled = false
+            }
         }
     }
 }

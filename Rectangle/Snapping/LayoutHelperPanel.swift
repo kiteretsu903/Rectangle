@@ -225,11 +225,9 @@ final class LayoutHelperPanel: LayoutHelperSurface {
         let bottom: CGFloat = offerPermission ? 48 : 20
         var footerControls: [NSView] = []
         if offerPermission {
-            let permission = NSButton(title: "Enable previews…", target: self, action: #selector(requestPermission))
-            permission.isBordered = false
-            permission.font = .systemFont(ofSize: 12)
-            permission.contentTintColor = .linkColor
-            permission.frame = NSRect(x: 20, y: max(top, height - 38), width: max(1, width - 40), height: 24)
+            let permission = LayoutHelperPermissionButton(target: self, action: #selector(requestPermission))
+            let buttonWidth = min(156, max(1, width - 40))
+            permission.frame = NSRect(x: (width - buttonWidth) / 2, y: max(top, height - 40), width: buttonWidth, height: 28)
             permission.toolTip = "Window previews need Screen Recording access. Icons and titles still work."
             surface.addSubview(permission)
             footerControls.append(permission)
@@ -459,5 +457,34 @@ private final class LayoutHelperCard: NSButton {
         (selected ? LayoutHelperAppearance.selection : LayoutHelperAppearance.outline).setStroke()
         outline.lineWidth = lineWidth
         outline.stroke()
+    }
+}
+
+
+/// Keeps the capture opt-in distinct from window candidates and readable over blur.
+final class LayoutHelperPermissionButton: NSButton {
+    init(target: AnyObject?, action: Selector) {
+        super.init(frame: .zero)
+        title = "Enable previews…"
+        self.target = target
+        self.action = action
+        isBordered = false
+        font = .systemFont(ofSize: 12, weight: .medium)
+        contentTintColor = .labelColor
+        focusRingType = .exterior
+        setAccessibilityIdentifier("layoutHelperEnablePreviews")
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let shape = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5),
+                                 xRadius: bounds.height / 2, yRadius: bounds.height / 2)
+        (isHighlighted ? NSColor.selectedControlColor : NSColor.controlBackgroundColor).withAlphaComponent(0.92).setFill()
+        shape.fill()
+        NSColor.separatorColor.setStroke()
+        shape.lineWidth = 1
+        shape.stroke()
+        super.draw(dirtyRect)
     }
 }

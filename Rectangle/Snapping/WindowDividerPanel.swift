@@ -1,4 +1,5 @@
 import Cocoa
+import ScreenCaptureKit
 
 final class WindowDividerPanel: NSPanel {
     private(set) var axis: WindowSplitAxis = .horizontal
@@ -137,6 +138,7 @@ final class WindowDividerOverlay: NSPanel {
 
     func show(in frame: CGRect, divider: CGFloat, gap: CGFloat, axis: WindowSplitAxis = .horizontal, below handle: WindowDividerPanel) {
         cancelFade()
+        guide.setFrozenImage(nil)
         alphaValue = 1
         setFrame(frame, display: false)
         guide.gap = gap
@@ -144,6 +146,12 @@ final class WindowDividerOverlay: NSPanel {
         guide.dividerX = axis == .horizontal ? divider - frame.minX : frame.maxY - CGPoint(x: 0, y: divider).screenFlipped.y
         if !isVisible { orderFront(nil) }
         if handle.isVisible { handle.order(.above, relativeTo: windowNumber) }
+    }
+
+    func freeze(_ image: CGImage) {
+        guide.setFrozenImage(image)
+        guide.displayIfNeeded()
+        CATransaction.flush()
     }
 
     func fadeOut(startedAt: TimeInterval = ProcessInfo.processInfo.systemUptime, completion: @escaping () -> Void) {
@@ -165,7 +173,8 @@ final class WindowDividerOverlay: NSPanel {
             let completion = fadeCompletion
             cancelFade()
             orderOut(nil)
-                alphaValue = 1
+            guide.setFrozenImage(nil)
+            alphaValue = 1
             completion?()
         }
     }
@@ -173,6 +182,7 @@ final class WindowDividerOverlay: NSPanel {
     func dismiss() {
         cancelFade()
         orderOut(nil)
+        guide.setFrozenImage(nil)
         alphaValue = 1
     }
 
@@ -186,6 +196,7 @@ final class WindowDividerOverlay: NSPanel {
 final class WindowDividerGuide: NSView {
     let leftSkeleton = NSVisualEffectView(frame: .zero)
     let rightSkeleton = NSVisualEffectView(frame: .zero)
+    private(set) var frozenImage: NSImage?
     var axis: WindowSplitAxis = .horizontal { didSet { needsLayout = true; needsDisplay = true } }
     var gap: CGFloat = 0 { didSet { needsLayout = true } }
     var dividerX: CGFloat = 0 { didSet { needsLayout = true; needsDisplay = true } }
@@ -206,6 +217,13 @@ final class WindowDividerGuide: NSView {
         }
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func setFrozenImage(_ image: CGImage?) {
+        frozenImage = image.map { NSImage(cgImage: $0, size: bounds.size) }
+        leftSkeleton.isHidden = image != nil
+        rightSkeleton.isHidden = image != nil
+        needsDisplay = true
+    }
 
     override func layout() {
         super.layout()
@@ -230,10 +248,67 @@ final class WindowDividerGuide: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
+        if let frozenImage {
+            // Include the inset and gutter so app edges stay covered during resizing.
+            frozenImage.draw(in: bounds, from: .zero, operation: .copy, fraction: 1)
+            return
+        }
         NSColor.black.withAlphaComponent(0.35).setFill()
         line(thickness: 4).fill()
         NSColor.white.withAlphaComponent(0.9).setFill()
         line(thickness: 1.5).fill()
+    }
+}
+
+/// One in-memory, cursor-free capture of the already composited drag preview.
+/// Unlike caching an NSVisualEffectView, display capture includes its backdrop.
+final class WindowDividerSnapshot {
+    // Resolve the display inventory during the drag, before mouse-up. The
+    // actual image is still captured only once, at the final preview position.
+    private var contentTask: Any?
+
+    static var enabled: Bool {
+        shouldCapture(enhanced: Defaults.windowDividerEnhanced.enabled) { LayoutHelperPermission.previewsAllowed }
+    }
+
+    static func shouldCapture(enhanced: Bool, hasAccess: () -> Bool) -> Bool {
+        enhanced && hasAccess()
+    }
+
+    func prepare() {
+        guard #available(macOS 14, *), Self.enabled else { return }
+        contentTask = Task { try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true) }
+    }
+
+    func clear() {
+        if #available(macOS 14, *), let task = contentTask as? Task<SCShareableContent?, Never> { task.cancel() }
+        contentTask = nil
+    }
+
+    @MainActor func capture(frame: CGRect, displayID: CGDirectDisplayID, scale: CGFloat) async -> CGImage? {
+        guard #available(macOS 14, *), Self.enabled, !Task.isCancelled else { return nil }
+        do {
+            if contentTask == nil { prepare() }
+            guard let task = contentTask as? Task<SCShareableContent?, Never>, let content = await task.value,
+                  !Task.isCancelled, Self.enabled,
+                  let display = content.displays.first(where: { $0.displayID == displayID }),
+                  display.frame.contains(frame) else { return nil }
+            let filter = SCContentFilter(display: display, excludingWindows: [])
+            let config = Self.configuration(frame: frame, displayFrame: display.frame, scale: scale)
+            return try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
+        } catch { return nil }
+    }
+
+    @available(macOS 14, *) static func configuration(frame: CGRect, displayFrame: CGRect, scale: CGFloat) -> SCStreamConfiguration {
+        let config = SCStreamConfiguration()
+        config.sourceRect = frame.offsetBy(dx: -displayFrame.minX, dy: -displayFrame.minY)
+        config.width = max(1, Int((frame.width * scale).rounded()))
+        config.height = max(1, Int((frame.height * scale).rounded()))
+        config.showsCursor = false
+        config.capturesAudio = false
+        config.shouldBeOpaque = true
+        config.pixelFormat = kCVPixelFormatType_32BGRA
+        return config
     }
 }
 

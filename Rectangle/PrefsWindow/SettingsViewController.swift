@@ -45,6 +45,7 @@ class SettingsViewController: NSViewController {
     private var rememberWindowSizeLimitsCheckbox: NSButton?
     private var fitBesideSnappedWindowsCheckbox: NSButton?
     private var windowDividerCheckbox: NSButton?
+    private var windowDividerEnhancedCheckbox: NSButton?
     private let shortcutRecordingObserver = ShortcutRecordingObserver()
     private var tilingShortcutViews = [MASShortcutView]()
     
@@ -1313,6 +1314,7 @@ class SettingsViewController: NSViewController {
         autoMaximizeCheckbox?.state = Defaults.autoMaximize.userDisabled ? .off : .on
         rememberWindowSizeLimitsCheckbox?.state = Defaults.rememberWindowSizeLimits.enabled ? .on : .off
         windowDividerCheckbox?.state = Defaults.windowDivider.enabled ? .on : .off
+        refreshWindowDividerEnhanced()
         fitBesideSnappedWindowsCheckbox?.state = Defaults.fitBesideSnappedWindows.enabled ? .on : .off
 
         halvesPreserveOtherAxisSizeCheckbox?.state = Defaults.halvesPreserveOtherAxisSize.enabled ? .on : .off
@@ -1454,7 +1456,7 @@ class SettingsViewController: NSViewController {
         divider.setContentHuggingPriority(.defaultHigh, for: .vertical)
         divider.state = Defaults.windowDivider.enabled ? .on : .off
         divider.setAccessibilityIdentifier("windowDivider")
-        divider.toolTip = "Drag the middle handle to resize a pair of snapped windows. Works independently of Layout Helper and does not need Screen Recording permission.".localized
+        divider.toolTip = "Drag the middle handle to resize paired windows. Standard transitions need no Screen Recording access.".localized
         func supportLabel(identifier: String) -> NSTextField {
             let label = NSTextField(labelWithString: "Left/right and top/bottom pairs only.".localized)
             label.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
@@ -1467,8 +1469,26 @@ class SettingsViewController: NSViewController {
         parentStack.insertArrangedSubview(divider, at: index + 2)
         parentStack.insertArrangedSubview(supportLabel(identifier: "windowDividerSupport"), at: index + 3)
         windowDividerCheckbox = divider
-        parentStack.insertArrangedSubview(fit, at: index + 4)
-        parentStack.insertArrangedSubview(supportLabel(identifier: "windowPairSupport"), at: index + 5)
+        let enhanced = NSButton(checkboxWithTitle: "Enhanced transitions", target: self,
+                                action: #selector(toggleWindowDividerEnhanced(_:)))
+        enhanced.setAccessibilityIdentifier("windowDividerEnhanced")
+        enhanced.setContentCompressionResistancePriority(.required, for: .vertical)
+        let hint = NSTextField(wrappingLabelWithString: "Uses a temporary screenshot to hide resizing. Requires Screen Recording access.")
+        hint.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        hint.textColor = .secondaryLabelColor
+        hint.widthAnchor.constraint(equalToConstant: 360).isActive = true
+        hint.setContentCompressionResistancePriority(.required, for: .vertical)
+        hint.setContentHuggingPriority(.defaultHigh, for: .vertical)
+        let enhancedGroup = NSStackView(views: [enhanced, hint])
+        enhancedGroup.orientation = .vertical
+        enhancedGroup.alignment = .leading
+        enhancedGroup.spacing = 4
+        enhancedGroup.edgeInsets = NSEdgeInsets(top: 0, left: 18, bottom: 0, right: 0)
+        parentStack.insertArrangedSubview(enhancedGroup, at: index + 4)
+        windowDividerEnhancedCheckbox = enhanced
+        refreshWindowDividerEnhanced()
+        parentStack.insertArrangedSubview(fit, at: index + 5)
+        parentStack.insertArrangedSubview(supportLabel(identifier: "windowPairSupport"), at: index + 6)
         fitBesideSnappedWindowsCheckbox = fit
     }
 
@@ -1478,7 +1498,24 @@ class SettingsViewController: NSViewController {
 
     @objc private func toggleWindowDivider(_ sender: NSButton) {
         Defaults.windowDivider.enabled = sender.state == .on
+        refreshWindowDividerEnhanced()
         WindowDividerManager.shared.clear()
+    }
+
+    private func refreshWindowDividerEnhanced() {
+        windowDividerEnhancedCheckbox?.state = Defaults.windowDividerEnhanced.enabled ? .on : .off
+        windowDividerEnhancedCheckbox?.isEnabled = Defaults.windowDivider.enabled && LayoutHelperPermission.previewsSupported
+        windowDividerEnhancedCheckbox?.toolTip = "Uses standard transitions when Screen Recording access is unavailable. Requires macOS 14 or later."
+    }
+
+    @objc private func toggleWindowDividerEnhanced(_ sender: NSButton) {
+        Defaults.windowDividerEnhanced.enabled = sender.state == .on
+        WindowDividerManager.shared.clear()
+        if sender.state == .on {
+            LayoutHelperPermission.guideIfNeeded(for: .windowDivider) { [weak self] in
+                self?.refreshWindowDividerEnhanced()
+            }
+        }
     }
 
     @objc private func toggleFitBesideSnappedWindows(_ sender: NSButton) {

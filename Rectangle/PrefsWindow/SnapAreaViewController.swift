@@ -16,7 +16,7 @@ class SnapAreaViewController: NSViewController {
         screenshot.setAccessibilityLabel("Layout Helper example: Notes is snapped on the left; choose Research or Tasks to fill the right side.")
         screenshot.widthAnchor.constraint(equalToConstant: 560).isActive = true
         screenshot.heightAnchor.constraint(equalToConstant: 325).isActive = true
-        let explanation = NSTextField(wrappingLabelWithString: "After snapping a window, choose another window to fill the remaining space. This example uses sample windows.\n\nScreen Recording permission lets macOS provide still images for the window thumbnails. Layout Helper keeps them in memory, does not save them to disk, and does not capture audio. Without permission, you can still choose windows using app icons and titles. Window Divider does not need this permission.")
+        let explanation = NSTextField(wrappingLabelWithString: "Snap a window, then choose another to fill the remaining space. Sample windows shown.\n\nThumbnails need Screen Recording access; icons and titles work without it.")
         explanation.widthAnchor.constraint(equalToConstant: 560).isActive = true
         explanation.setContentCompressionResistancePriority(.required, for: .vertical)
         let content = NSStackView(views: [screenshot, explanation])
@@ -70,9 +70,9 @@ class SnapAreaViewController: NSViewController {
         let allowed = LayoutHelperPermission.previewsAllowed
         layoutHelperPermissionLabel?.isHidden = !states[0]
         layoutHelperPermissionLabel?.stringValue = !supported
-            ? "Window previews need macOS 14 or later. Layout Helper uses icons and titles."
-            : allowed ? "Screen Recording access provides window thumbnails. Images stay in memory; no audio is captured."
-            : "Screen Recording access provides window thumbnails. Without it, Layout Helper uses app icons and titles."
+            ? "Window thumbnails require macOS 14 or later."
+            : allowed ? "Window thumbnails enabled."
+            : "Thumbnails need Screen Recording access. Icons and titles work without it."
         layoutHelperPermissionButton?.isHidden = !states[0] || !supported || allowed
     }
     
@@ -202,8 +202,7 @@ class SnapAreaViewController: NSViewController {
         super.viewDidLoad()
         if let animationStack = blurFootprintCheckbox.superview as? NSStackView,
            let optionsRow = animationStack.superview as? NSStackView,
-           let contentStack = optionsRow.superview as? NSStackView,
-           let optionsIndex = contentStack.arrangedSubviews.firstIndex(of: optionsRow) {
+           let contentStack = optionsRow.superview as? NSStackView {
             let stack = NSStackView()
             stack.orientation = .vertical
             stack.alignment = .leading
@@ -220,7 +219,14 @@ class SnapAreaViewController: NSViewController {
             helperRow.orientation = .horizontal
             helperRow.alignment = .top
             helperRow.spacing = 24
-            contentStack.insertArrangedSubview(helperRow, at: optionsIndex + 1)
+            let separator = NSBox()
+            separator.boxType = .separator
+            contentStack.addArrangedSubview(separator)
+            contentStack.addArrangedSubview(helperRow)
+            separator.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
+            helperRow.leadingAnchor.constraint(equalTo: optionsRow.leadingAnchor).isActive = true
+            helperRow.trailingAnchor.constraint(equalTo: optionsRow.trailingAnchor).isActive = true
+            helperRow.setAccessibilityIdentifier("layoutHelperSection")
             for (index, title) in ["Layout Helper", "Also after keyboard and menu snaps", "Also for grids with eight or more cells"].enumerated() {
                 let checkbox = NSButton(checkboxWithTitle: title, target: self, action: #selector(toggleLayoutHelper(_:)))
                 checkbox.setContentCompressionResistancePriority(.required, for: .vertical)

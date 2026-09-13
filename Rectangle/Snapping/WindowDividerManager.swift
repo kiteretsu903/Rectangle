@@ -37,6 +37,9 @@ final class WindowDividerManager {
     private var hoverTimer: Timer?
     private var pointerOffset: CGFloat = 0
     private var settlement: DispatchWorkItem?
+    private var snapshotTask: Task<Void, Never>?
+    private var snapshotRequest: UUID?
+    private let snapshot = WindowDividerSnapshot()
     private var sizeAttempt: (beforeLeft: CGRect, beforeRight: CGRect, requestedLeft: CGRect, requestedRight: CGRect, generation: UUID)?
     private var dragging = false
     private let panel = WindowDividerPanel()
@@ -206,6 +209,7 @@ final class WindowDividerManager {
                   read: { ($0 ? l : r).frame }) else { return false }
         active = pair; resize = engine; dragging = true
         panel.holdVisible()
+        if WindowDividerSnapshot.enabled { snapshot.prepare() }
         pointerOffset = (pointerX ?? pair.divider) - pair.divider
         overlay.show(in: engine.geometry.outer.screenFlipped, divider: pair.divider, gap: engine.geometry.gap, axis: pair.axis, below: panel)
         return true
@@ -235,8 +239,52 @@ final class WindowDividerManager {
         CATransaction.flush()
         panel.hide { [weak self] in
             guard let self, self.active === pair, self.resize === engine else { return }
-            self.place(engine: engine, pair: pair, divider: x)
+            self.freezeThenPlace(engine: engine, pair: pair, divider: x)
         }
+    }
+
+    private func freezeThenPlace(engine: WindowDividerResize, pair: Pair, divider: CGFloat) {
+        guard WindowDividerSnapshot.enabled else {
+            place(engine: engine, pair: pair, divider: divider)
+            return
+        }
+        let request = UUID()
+        snapshotRequest = request
+        WindowAnimationDiagnostics.event("divider-snapshot-start")
+        // Bound capture latency. Old systems or unavailable capture retain the
+        // live blur path, without requesting permission in the middle of a drag.
+        let timeout = DispatchWorkItem { [weak self] in
+            self?.captured(nil, request: request, engine: engine, pair: pair, divider: divider)
+        }
+        settlement = timeout
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45, execute: timeout)
+        snapshotTask = Task { @MainActor [weak self] in
+            // Let the target guide and hidden handle reach the compositor first.
+            try? await Task.sleep(nanoseconds: 33_000_000)
+            guard !Task.isCancelled, let self, self.snapshotRequest == request else { return }
+            let image = await self.snapshot.capture(frame: engine.geometry.outer,
+                displayID: self.screenID(pair.left.screen), scale: pair.left.screen.backingScaleFactor)
+            guard !Task.isCancelled else { return }
+            self.captured(image, request: request, engine: engine, pair: pair, divider: divider)
+        }
+    }
+
+    private func captured(_ image: CGImage?, request: UUID, engine: WindowDividerResize, pair: Pair, divider: CGFloat) {
+        guard snapshotRequest == request, active === pair, resize === engine else { return }
+        snapshotRequest = nil
+        snapshotTask?.cancel(); snapshotTask = nil
+        snapshot.clear()
+        settlement?.cancel(); settlement = nil
+        WindowAnimationDiagnostics.event("divider-snapshot-result", fields: ["captured": image != nil])
+        if let image, WindowDividerSnapshot.enabled { overlay.freeze(image) }
+        let place = DispatchWorkItem { [weak self] in
+            guard let self, self.active === pair, self.resize === engine else { return }
+            self.settlement = nil
+            self.place(engine: engine, pair: pair, divider: divider)
+        }
+        settlement = place
+        // Publish the frozen surface before an app can acknowledge its AX write.
+        DispatchQueue.main.asyncAfter(deadline: .now() + (image == nil ? 0 : 0.033), execute: place)
     }
 
     private func place(engine: WindowDividerResize, pair: Pair, divider x: CGFloat) {
@@ -274,8 +322,10 @@ final class WindowDividerManager {
                LayoutHelperLayout.matches(placement.left, attempt.beforeLeft),
                LayoutHelperLayout.matches(placement.right, attempt.beforeRight) { sizeAttempt = nil }
             // A learned minimum can move the accepted split away from the drag proposal.
-            overlay.show(in: engine.geometry.outer.screenFlipped, divider: engine.divider,
-                         gap: engine.geometry.gap, axis: pair.axis, below: panel)
+            if overlay.guide.frozenImage == nil {
+                overlay.show(in: engine.geometry.outer.screenFlipped, divider: engine.divider,
+                             gap: engine.geometry.gap, axis: pair.axis, below: panel)
+            }
             awaitSettlement(engine: engine, pair: pair,
                 gate: WindowDividerRevealGate(left: engine.left, right: engine.right,
                     startedAt: ProcessInfo.processInfo.systemUptime))
@@ -348,6 +398,9 @@ final class WindowDividerManager {
     }
 
     private func finishMovement() {
+        snapshotRequest = nil
+        snapshotTask?.cancel(); snapshotTask = nil
+        snapshot.clear()
         settlement?.cancel(); settlement = nil
         overlay.dismiss()
         dragging = false

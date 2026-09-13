@@ -44,6 +44,7 @@ class Defaults {
     static let cooperativeCornerResize = BoolDefault(key: "cooperativeCornerResize")
     static let experimentalWindowAnimations = BoolDefault(key: "experimentalWindowAnimations")
     static let windowDivider = BoolDefault(key: "windowDivider")
+    static let windowDividerEnhanced = BoolDefault(key: "windowDividerEnhanced")
     static let fitBesideSnappedWindows = BoolDefault(key: "fitBesideSnappedWindows")
     static let rememberWindowSizeLimits = BoolDefault(key: "rememberWindowSizeLimits")
     static let allowAnyShortcut = BoolDefault(key: "allowAnyShortcut")
@@ -171,6 +172,7 @@ class Defaults {
         rememberWindowSizeLimits,
         fitBesideSnappedWindows,
         windowDivider,
+        windowDividerEnhanced,
         allowAnyShortcut,
         windowSnapping,
         layoutHelper,

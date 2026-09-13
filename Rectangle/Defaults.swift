@@ -17,6 +17,22 @@ enum BlurAppearance: Int, CaseIterable {
 }
 
 class Defaults {
+    // Import aliases are retained solely for settings written before the feature rename.
+    static let legacyLayoutHelperKeys = [
+        "layoutHelper": "snapAssist",
+        "layoutHelperKeyboard": "snapAssistKeyboard",
+        "layoutHelperDenseGrids": "snapAssistDenseGrids"
+    ]
+
+    static func migrateLayoutHelperPreferences(in store: UserDefaults = .standard) {
+        for (current, legacy) in legacyLayoutHelperKeys {
+            if store.object(forKey: current) == nil, let value = store.object(forKey: legacy) {
+                store.set(value, forKey: current)
+            }
+            store.removeObject(forKey: legacy)
+        }
+    }
+
     static let launchOnLogin = BoolDefault(key: "launchOnLogin")
     static let disabledApps = JSONDefault<Set<String>>(key: "disabledApps")
     static let hideMenuBarIcon = BoolDefault(key: "hideMenubarIcon")
@@ -27,8 +43,14 @@ class Defaults {
     static let cornerCycleExpansionAxis = IntEnumDefault<CornerCycleExpansionAxis>(key: "cornerCycleExpansionAxis", defaultValue: .horizontal)
     static let cooperativeCornerResize = BoolDefault(key: "cooperativeCornerResize")
     static let experimentalWindowAnimations = BoolDefault(key: "experimentalWindowAnimations")
+    static let windowDivider = BoolDefault(key: "windowDivider")
+    static let fitBesideSnappedWindows = BoolDefault(key: "fitBesideSnappedWindows")
+    static let rememberWindowSizeLimits = BoolDefault(key: "rememberWindowSizeLimits")
     static let allowAnyShortcut = BoolDefault(key: "allowAnyShortcut")
     static let windowSnapping = OptionalBoolDefault(key: "windowSnapping")
+    static let layoutHelper = OptionalBoolDefault(key: "layoutHelper")
+    static let layoutHelperKeyboard = BoolDefault(key: "layoutHelperKeyboard")
+    static let layoutHelperDenseGrids = BoolDefault(key: "layoutHelperDenseGrids")
     static let almostMaximizeHeight = FloatDefault(key: "almostMaximizeHeight")
     static let almostMaximizeWidth = FloatDefault(key: "almostMaximizeWidth")
     static let gapSize = FloatDefault(key: "gapSize")
@@ -146,8 +168,14 @@ class Defaults {
         cornerCycleExpansionAxis,
         cooperativeCornerResize,
         experimentalWindowAnimations,
+        rememberWindowSizeLimits,
+        fitBesideSnappedWindows,
+        windowDivider,
         allowAnyShortcut,
         windowSnapping,
+        layoutHelper,
+        layoutHelperKeyboard,
+        layoutHelperDenseGrids,
         almostMaximizeHeight,
         almostMaximizeWidth,
         gapSize,
@@ -365,6 +393,29 @@ class StringDefault: Default {
     
     func toCodable() -> CodableDefault {
         return CodableDefault(string: value)
+    }
+}
+
+class FootprintAlphaDefault: Default {
+    let key = "footprintAlpha"
+
+    var value: Float {
+        get {
+            // Preserve an explicit zero and resolve the unset default by style.
+            (UserDefaults.standard.object(forKey: key) as? NSNumber)?.floatValue
+                ?? (Defaults.footprintBlur.enabled ? 0 : 0.3)
+        }
+        set { UserDefaults.standard.set(newValue, forKey: key) }
+    }
+
+    var cgFloat: CGFloat { CGFloat(value) }
+
+    func load(from codable: CodableDefault) {
+        if let float = codable.float { value = float }
+    }
+
+    func toCodable() -> CodableDefault {
+        CodableDefault(float: value)
     }
 }
 

@@ -22,7 +22,7 @@ brew install --cask rectangle
 
 ## How to use it
 
-The [keyboard shortcuts](https://support.apple.com/guide/mac-help/what-are-those-symbols-shown-in-menus-cpmh0011/mac) are self explanatory, but the snap areas can use some explanation if you've never used them on Windows or other window management apps.
+The [keyboard shortcuts](https://support.apple.com/guide/mac-help/what-are-those-symbols-shown-in-menus-cpmh0011/mac) use standard macOS symbols. The table below explains where to drag a window to activate each snap area.
 
 Drag a window to the edge of the screen. When the mouse cursor reaches the edge of the screen, you'll see a footprint that Rectangle will attempt to resize and move the window to when the click is released.
 
@@ -36,6 +36,17 @@ Drag a window to the edge of the screen. When the mouse cursor reaches the edge 
 | Bottom left or right third, then drag to bottom center | First or last two thirds, respectively |
 
 In **Snap Areas**, enable **Animate windows (experimental)** for smooth window resizing or **Blur footprint** for a blurred snap preview. Both are off by default. Animated snapping keeps the selected edge or center aligned when an app limits its window size or aspect ratio. Dragging a snapped window starts restoring its previous size as the window begins moving, and a quick release lets the remaining restore animation continue. Far-right title-bar grabs can still show visible jumps. Title-bar double-click maximize/restore follows the same animation setting and timing as snapping. Window animation has been tested in known scenarios, but remains experimental because repeatedly updating the window's size and position during the transition may cause issues in some edge cases.
+
+**Layout Helper** offers other windows after a drag snap, one remaining region at a time. Previews settle into the picker with a quick zoom from a larger size; Reduce Motion uses a short fade. It fills regions from left to right, then top to bottom, skipping compatible windows already in place. Click a window to place it using the **Animate windows (experimental)** setting, or press Escape/click outside to stop while keeping completed placements. Enable it in **Snap Areas**; it is off by default. Keyboard/menu assistance and grids with eight or more cells have separate options, both off by default.
+
+Enable **General → Window Divider**, then arrange a full-height left/right pair or a full-width top/bottom pair with Rectangle. Hover near the center of their shared edge to reveal a divider. Drag the handle along a guide spanning the pair between two padded, blurred panels that preview the new split while both windows stay still. On release, the native blur preview remains visible while both windows move directly to the chosen split underneath. Outer edges and the gap are preserved. Window Divider does not capture screenshots or require Screen Recording permission. Once the placement settles, the panels fade out quickly. Double-click returns to equal sizes using the same covered placement and fade. The divider hides while either window is covered or unavailable; its switch is independent of Layout Helper and fitting, and is off by default. Reported and learned per-window minimums are shared across snapping, previews, Layout Helper, and cooperative layouts. After an unreported limit is learned from a settled resize, later divider drags stop at that boundary; ordinary snap previews expand to the feasible size and oversized picker candidates are disabled.
+
+**General → Manage memory** lists learned limits by application and window, with **Reset Window**, **Reset Application**, and **Reset All** controls. **Remember learned window limits indefinitely** is off by default: temporary limits expire after ten minutes. Turn it on to retain limits across Rectangle restarts and reuse them for identifiable windows after an app restarts. New sizing evidence can update a saved limit. The same limits also apply to batch tiling and Todo layouts. The divider handle fades in and out when window animation is enabled.
+
+Enable **General → Fit remaining space** to make ordinary left/right or top/bottom snaps use the remaining space next to a visible window already placed by Rectangle. It supports full-height left/right pairs and full-width top/bottom pairs only. The preview and placement follow its actual edge, including minimum-size adjustments and divider changes, while the neighboring window stays still. The option is off by default and works independently of Layout Helper, the divider, and remembering limits. Known impossible fits are rejected.
+
+On macOS 14 or later, enabling **Layout Helper** explains why window thumbnails need Screen Recording access. Choose **Enable Previews** to request permission, or **Use Icons and Titles** to continue without it. **Enable window previews…** is also available in Snap Areas settings and the picker. If needed, it opens **System Settings → Privacy & Security → Screen & System Audio Recording**, where you can enable Rectangle; reopen Rectangle if macOS asks. On older macOS versions, the picker uses icons and titles. Previews use a bounded in-memory cache with at most two concurrent captures, and windows stay grouped by app. Mouse selection uses light-grey outlines; keyboard selection has a thicker grey indicator. **See example…** in Snap Areas shows the feature using sample windows and explains the permission. Thumbnails stay in memory, are not saved to disk, and contain no audio. See [Layout Helper behavior](docs/layout-helper.md) for supported layouts and settings.
+
 
 ### Tile windows in rows or columns
 
@@ -96,7 +107,7 @@ Apple never released a public API for doing this. Rectangle Pro has next/prev Sp
 
 ### Windows overlap when using thirds or other small layouts
 
-Some apps enforce a minimum window size that is larger than the requested layout. For example, a window with a minimum width of 600 points cannot fit a 504-point third of a display. Rectangle keeps the window on screen and briefly shows a “Minimum window size reached” HUD with a window icon when the app leaves it larger than the requested size. Use a larger layout, such as halves, or reduce the adjacent window manually. Rectangle cannot override an app's minimum window size.
+Some apps enforce a minimum window size that is larger than the requested layout. For example, a window with a minimum width of 600 points cannot fit a 504-point third of a display. Rectangle keeps the window on screen and briefly shows a “Minimum window size reached” HUD with a window icon when the app leaves it larger than the requested size. Use a larger layout, such as halves, or reduce the adjacent window manually. Rectangle cannot override an app's minimum window size. A known minimum that exceeds the available area leaves the window unchanged and explains why. With **Fit remaining space**, a failed placement restores the incoming window and reports the recovery once its previous frame is verified.
 
 ### Window resizing is off slightly for iTerm2
 

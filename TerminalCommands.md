@@ -8,7 +8,7 @@ The preferences window is purposefully slim, but there's a lot that can be modif
 - [Adjust Behavior on Repeated Commands](#adjust-behavior-on-repeated-commands)
 - [Cycle thirds on repeated Center Half commands](#cycle-thirds-on-repeated-center-half-commands)
 - [Resize on Directional Move](#resize-on-directional-move)
-- [Make the half actions tile like Windows or KDE](#make-the-half-actions-tile-like-windows-or-kde)
+- [Preserve the other axis when tiling halves](#preserve-the-other-axis-when-tiling-halves)
 - [Adjust macOS Ventura Stage Manager size](#adjust-macos-ventura-stage-manager-size)
 - [Enable Todo Mode](#enable-todo-mode)
 - [Only allow drag-to-snap when modifier keys are pressed](#only-allow-drag-to-snap-when-modifier-keys-are-pressed)
@@ -91,9 +91,9 @@ Note that if subsequent execution mode is set to cycle displays when this is ena
 defaults write com.knollsoft.Rectangle resizeOnDirectionalMove -bool true
 ```
 
-## Make the half actions tile like Windows or KDE
+## Preserve the other axis when tiling halves
 
-By default, Left Half, Right Half, Top Half and Bottom Half always give the window the full height or width of the screen. Enable this to have each of them only change its own axis and keep the other one, like the Win + arrow keys on Windows or keyboard tiling on KDE:
+By default, Left Half, Right Half, Top Half and Bottom Half always give the window the full height or width of the screen. Enable this to have each of them only change its own axis and keep the other one:
 
 - Left Half followed by Top Half puts the window in the top left quarter (so does Top Half followed by Left Half).
 - Inside a quarter, the action for the opposite edge expands the window along that axis: Bottom Half takes a top left quarter back to Left Half, Right Half takes it to Top Half.

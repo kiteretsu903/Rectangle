@@ -209,7 +209,9 @@ final class WindowDividerManager {
                   read: { ($0 ? l : r).frame }) else { return false }
         active = pair; resize = engine; dragging = true
         panel.holdVisible()
-        if WindowDividerSnapshot.enabled { snapshot.prepare() }
+        let captureEnabled = WindowDividerSnapshot.enabled
+        overlay.snapshotScreenFrame = captureEnabled ? pair.left.screen.frame : nil
+        if captureEnabled { snapshot.prepare() }
         pointerOffset = (pointerX ?? pair.divider) - pair.divider
         overlay.show(in: engine.geometry.outer.screenFlipped, divider: pair.divider, gap: engine.geometry.gap, axis: pair.axis, below: panel)
         return true
@@ -262,7 +264,7 @@ final class WindowDividerManager {
             // Let the target guide and hidden handle reach the compositor first.
             try? await Task.sleep(nanoseconds: 33_000_000)
             guard !Task.isCancelled, let self, self.snapshotRequest == request else { return }
-            let image = await self.snapshot.capture(frame: engine.geometry.outer,
+            let image = await self.snapshot.capture(frame: self.overlay.frame.screenFlipped,
                 displayID: self.screenID(pair.left.screen), scale: pair.left.screen.backingScaleFactor)
             guard !Task.isCancelled else { return }
             self.captured(image, request: request, engine: engine, pair: pair, divider: divider)

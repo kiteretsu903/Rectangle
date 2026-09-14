@@ -115,6 +115,7 @@ struct DividerHandleFade {
 /// A pointer-transparent drag preview below the handle, limited to the pair.
 final class WindowDividerOverlay: NSPanel {
     let guide = WindowDividerGuide(frame: .zero)
+    var snapshotScreenFrame: CGRect?
     private var fadeTimer: Timer?
     private var fadeCompletion: (() -> Void)?
     private var fadeStartedAt: TimeInterval?
@@ -136,11 +137,18 @@ final class WindowDividerOverlay: NSPanel {
         contentView = guide
     }
 
-    func show(in frame: CGRect, divider: CGFloat, gap: CGFloat, axis: WindowSplitAxis = .horizontal, below handle: WindowDividerPanel) {
+    func show(in frame: CGRect, divider: CGFloat, gap: CGFloat, axis: WindowSplitAxis = .horizontal,
+              below handle: WindowDividerPanel) {
         cancelFade()
         guide.setFrozenImage(nil)
         alphaValue = 1
-        setFrame(frame, display: false)
+        // Reserve transparent space before capture so freezing the native
+        // shadows does not resize the panel during the image handoff.
+        let coverage = snapshotScreenFrame.map {
+            WindowDividerSnapshot.coverageFrame(for: frame, screenFrame: $0)
+        } ?? frame
+        setFrame(coverage, display: false)
+        guide.previewBounds = frame.offsetBy(dx: -coverage.minX, dy: -coverage.minY)
         guide.gap = gap
         guide.axis = axis
         guide.dividerX = axis == .horizontal ? divider - frame.minX : frame.maxY - CGPoint(x: 0, y: divider).screenFlipped.y
@@ -171,19 +179,18 @@ final class WindowDividerOverlay: NSPanel {
         alphaValue = 1 - progress
         if progress == 1 {
             let completion = fadeCompletion
-            cancelFade()
-            orderOut(nil)
-            guide.setFrozenImage(nil)
-            alphaValue = 1
+            dismiss()
             completion?()
         }
     }
 
     func dismiss() {
         cancelFade()
+        // Keep the retired surface transparent even if ordering and drawing
+        // reach the compositor in different transactions. Only show() reveals it.
+        alphaValue = 0
         orderOut(nil)
-        guide.setFrozenImage(nil)
-        alphaValue = 1
+        guide.retire()
     }
 
     private func cancelFade() {
@@ -194,52 +201,79 @@ final class WindowDividerOverlay: NSPanel {
 }
 
 final class WindowDividerGuide: NSView {
-    let leftSkeleton = NSVisualEffectView(frame: .zero)
-    let rightSkeleton = NSVisualEffectView(frame: .zero)
+    let backdrop = NSVisualEffectView(frame: .zero)
+    let decoration = WindowDividerDecoration(frame: .zero)
     private(set) var frozenImage: NSImage?
-    var axis: WindowSplitAxis = .horizontal { didSet { needsLayout = true; needsDisplay = true } }
+    var previewBounds: CGRect? { didSet { needsLayout = true } }
+    var axis: WindowSplitAxis = .horizontal { didSet { needsLayout = true } }
     var gap: CGFloat = 0 { didSet { needsLayout = true } }
-    var dividerX: CGFloat = 0 { didSet { needsLayout = true; needsDisplay = true } }
+    var dividerX: CGFloat = 0 { didSet { needsLayout = true } }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        for blur in [leftSkeleton, rightSkeleton] {
-            blur.material = .fullScreenUI
-            blur.blendingMode = .behindWindow
-            blur.state = .active
-            blur.wantsLayer = true
-            blur.layer?.borderWidth = 1
-            blur.layer?.borderColor = LayoutHelperAppearance.outline.cgColor
-            blur.layer?.masksToBounds = true
-            blur.layer?.contentsFormat = .RGBA8Uint
-            if #available(macOS 26, *) { blur.layer?.preferredDynamicRange = .standard }
-            addSubview(blur)
-        }
+        backdrop.material = .fullScreenUI
+        backdrop.blendingMode = .behindWindow
+        backdrop.state = .active
+        backdrop.wantsLayer = true
+        backdrop.layer?.contentsFormat = .RGBA8Uint
+        if #available(macOS 26, *) { backdrop.layer?.preferredDynamicRange = .standard }
+        // Cover the margins and gutter from the start of the drag. Rounded
+        // outlines belong above the backdrop so they cannot cut holes in it.
+        addSubview(backdrop)
+        addSubview(decoration)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     func setFrozenImage(_ image: CGImage?) {
         frozenImage = image.map { NSImage(cgImage: $0, size: bounds.size) }
-        leftSkeleton.isHidden = image != nil
-        rightSkeleton.isHidden = image != nil
+        backdrop.isHidden = image != nil
+        decoration.isHidden = image != nil
+        needsDisplay = true
+    }
+
+    func retire() {
+        frozenImage = nil
+        backdrop.isHidden = true
+        decoration.isHidden = true
         needsDisplay = true
     }
 
     override func layout() {
         super.layout()
-        let bounds = axis.rect(self.bounds)
+        let preview = previewBounds ?? bounds
+        backdrop.frame = preview
+        decoration.frame = preview
+        decoration.axis = axis
+        decoration.dividerX = dividerX
+        let bounds = axis.rect(CGRect(origin: .zero, size: preview.size))
         let leftEdge = max(0, min(bounds.width, dividerX - gap / 2))
         let rightEdge = max(leftEdge, min(bounds.width, dividerX + gap / 2))
         let regions = [CGRect(x: 0, y: 0, width: leftEdge, height: bounds.height),
                        CGRect(x: rightEdge, y: 0, width: bounds.width - rightEdge, height: bounds.height)]
-        for (blur, region) in zip([leftSkeleton, rightSkeleton], regions) {
+        decoration.outlines = regions.map { region in
             let inset = LayoutHelperPreviewLayout.inset(for: region.size)
             let physical = axis.rect(region.insetBy(dx: inset, dy: inset))
-            blur.frame = axis == .horizontal ? physical : CGRect(x: physical.minX, y: self.bounds.height - physical.maxY,
-                                                                 width: physical.width, height: physical.height)
-            blur.layer?.cornerRadius = min(LayoutHelperAppearance.cornerRadius, min(blur.frame.width, blur.frame.height) / 2)
+            return axis == .horizontal ? physical : CGRect(x: physical.minX, y: preview.height - physical.maxY,
+                                                           width: physical.width, height: physical.height)
+        }
+        decoration.needsDisplay = true
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        if let frozenImage {
+            frozenImage.draw(in: bounds, from: .zero, operation: .copy, fraction: 1)
+        } else {
+            NSColor.clear.setFill()
+            bounds.fill(using: .copy)
         }
     }
+}
+
+/// Transparent outlines keep the preview shape independent of blur coverage.
+final class WindowDividerDecoration: NSView {
+    var axis: WindowSplitAxis = .horizontal
+    var dividerX: CGFloat = 0
+    var outlines: [CGRect] = []
 
     private func line(thickness: CGFloat) -> CGRect {
         axis == .horizontal
@@ -248,10 +282,14 @@ final class WindowDividerGuide: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        if let frozenImage {
-            // Include the inset and gutter so app edges stay covered during resizing.
-            frozenImage.draw(in: bounds, from: .zero, operation: .copy, fraction: 1)
-            return
+        NSColor.clear.setFill()
+        bounds.fill(using: .copy)
+        LayoutHelperAppearance.outline.setStroke()
+        for frame in outlines {
+            let radius = min(LayoutHelperAppearance.cornerRadius, min(frame.width, frame.height) / 2)
+            let outline = NSBezierPath(roundedRect: frame, xRadius: radius, yRadius: radius)
+            outline.lineWidth = 1
+            outline.stroke()
         }
         NSColor.black.withAlphaComponent(0.35).setFill()
         line(thickness: 4).fill()
@@ -263,6 +301,14 @@ final class WindowDividerGuide: NSView {
 /// One in-memory, cursor-free capture of the already composited drag preview.
 /// Unlike caching an NSVisualEffectView, display capture includes its backdrop.
 final class WindowDividerSnapshot {
+    private static let imageContext = CIContext(options: [.cacheIntermediates: false])
+
+    static func coverageFrame(for frame: CGRect, screenFrame: CGRect) -> CGRect {
+        // AppKit coordinates: reserve the native shadow below the pair.
+        CGRect(x: frame.minX, y: frame.minY - 64, width: frame.width,
+               height: frame.height + 64).intersection(screenFrame)
+    }
+
     // Resolve the display inventory during the drag, before mouse-up. The
     // actual image is still captured only once, at the final preview position.
     private var contentTask: Any?
@@ -295,7 +341,12 @@ final class WindowDividerSnapshot {
                   display.frame.contains(frame) else { return nil }
             let filter = SCContentFilter(display: display, excludingWindows: [])
             let config = Self.configuration(frame: frame, displayFrame: display.frame, scale: scale)
-            return try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
+            // captureImage can omit native window shadows on macOS 26. Keep
+            // the composited sample buffer, including the reserved bottom edge.
+            let sample = try await SCScreenshotManager.captureSampleBuffer(contentFilter: filter, configuration: config)
+            guard !Task.isCancelled, let buffer = CMSampleBufferGetImageBuffer(sample) else { return nil }
+            let image = CIImage(cvPixelBuffer: buffer)
+            return Self.imageContext.createCGImage(image, from: image.extent)
         } catch { return nil }
     }
 
@@ -306,7 +357,6 @@ final class WindowDividerSnapshot {
         config.height = max(1, Int((frame.height * scale).rounded()))
         config.showsCursor = false
         config.capturesAudio = false
-        config.shouldBeOpaque = true
         config.pixelFormat = kCVPixelFormatType_32BGRA
         return config
     }

@@ -150,6 +150,7 @@ final class LayoutHelperPanel: LayoutHelperSurface {
         let icon: NSImage?
         let unavailableReason: String?
         var sourceSize: CGSize = CGSize(width: 800, height: 500)
+        var isCurrentWindow = false
     }
 
     var onSelect: ((CGWindowID) -> Void)?
@@ -409,7 +410,8 @@ private final class LayoutHelperCard: NSButton {
         focusRingType = .none
         title = item.title
         isEnabled = item.unavailableReason == nil
-        toolTip = item.unavailableReason.map { "\(item.title) — \($0)" } ?? item.title
+        let status = item.unavailableReason ?? (item.isCurrentWindow ? "Current window".localized : nil)
+        toolTip = status.map { "\(item.title) — \($0)" } ?? item.title
         setAccessibilityLabel(toolTip)
         setAccessibilityRole(.button)
         wantsLayer = true
@@ -449,6 +451,18 @@ private final class LayoutHelperCard: NSButton {
                         operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineBreakMode = .byTruncatingTail
+        if item.isCurrentWindow {
+            let status = "Current window".localized as NSString
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 10, weight: .medium), .foregroundColor: NSColor.labelColor,
+                .paragraphStyle: paragraph
+            ]
+            let width = min(status.size(withAttributes: attributes).width + 12, max(1, bounds.width - 16))
+            let badge = NSRect(x: 8, y: imageArea.minY + 6, width: width, height: 20)
+            NSColor.controlBackgroundColor.withAlphaComponent(0.94).setFill()
+            NSBezierPath(roundedRect: badge, xRadius: 6, yRadius: 6).fill()
+            status.draw(in: badge.insetBy(dx: 6, dy: 3), withAttributes: attributes)
+        }
         (item.title as NSString).draw(in: NSRect(x: 44, y: 11, width: max(1, bounds.width - 60), height: 20), withAttributes: [
             .font: NSFont.systemFont(ofSize: 13), .foregroundColor: NSColor.labelColor,
             .paragraphStyle: paragraph

@@ -1450,13 +1450,13 @@ class SettingsViewController: NSViewController {
         fit.toolTip = "Fit into the remaining space next to an already snapped window.".localized
         fit.setAccessibilityIdentifier("fitBesideSnappedWindows")
         fit.setContentCompressionResistancePriority(.required, for: .vertical)
-        let divider = NSButton(checkboxWithTitle: "Window Divider".localized,
+        let divider = NSButton(checkboxWithTitle: "Resize windows together".localized,
                                target: self, action: #selector(toggleWindowDivider(_:)))
         divider.setContentCompressionResistancePriority(.required, for: .vertical)
         divider.setContentHuggingPriority(.defaultHigh, for: .vertical)
         divider.state = Defaults.windowDivider.enabled ? .on : .off
         divider.setAccessibilityIdentifier("windowDivider")
-        divider.toolTip = "Drag the middle handle to resize paired windows. Standard transitions need no Screen Recording access.".localized
+        divider.toolTip = "Drag the handle between two snapped windows to resize them together.".localized
         func supportLabel(identifier: String) -> NSTextField {
             let label = NSTextField(labelWithString: "Left/right and top/bottom pairs only.".localized)
             label.font = .systemFont(ofSize: NSFont.smallSystemFontSize)

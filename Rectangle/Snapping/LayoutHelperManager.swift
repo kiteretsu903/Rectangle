@@ -208,7 +208,7 @@ final class LayoutHelperManager {
             occupied.formUnion(layout.occupiedCells(by: frame))
         }
         for (_, window) in windows where retained[window] == nil {
-            let cells = layout.occupiedCells(by: window.frame)
+            let cells = layout.prefilledCells(by: window.frame)
             if !cells.isEmpty && occupied.isDisjoint(with: cells) {
                 occupied.formUnion(cells)
                 retained[window] = window.frame
@@ -226,9 +226,11 @@ final class LayoutHelperManager {
         currentCell = next
         let target = layout.target(for: layout.cells[next])
         let candidateWindows = windows.filter { candidates[$0.0] != nil }
-        let orderedIDs = appOrder.ordered(candidateWindows.map { id, window in
+        let currentWindowID = candidateWindows.first { LayoutHelperLayout.matches($0.1.frame, target) }?.0
+        let appOrderedIDs = appOrder.ordered(candidateWindows.map { id, window in
             (id, window.pid.flatMap { NSRunningApplication(processIdentifier: $0)?.bundleIdentifier } ?? "pid:\(window.pid ?? 0)")
         })
+        let orderedIDs = appOrderedIDs.filter { $0 == currentWindowID } + appOrderedIDs.filter { $0 != currentWindowID }
         previewKeys = Dictionary(uniqueKeysWithValues: candidateWindows.compactMap { id, window in
             LayoutHelperPreviewStore.key(id: id, window: window).map { (id, $0) }
         })
@@ -236,7 +238,9 @@ final class LayoutHelperManager {
             guard let window = candidates[id] else { return nil }
             let app = window.pid.flatMap { NSRunningApplication(processIdentifier: $0) }
             let title = window.title.flatMap { $0.isEmpty ? nil : $0 } ?? app?.localizedName ?? "Window"
-            return LayoutHelperPanel.Item(id: id, title: title, icon: app?.icon, unavailableReason: unavailableReason(window, target: target), sourceSize: window.frame.size)
+            return LayoutHelperPanel.Item(id: id, title: title, icon: app?.icon,
+                unavailableReason: unavailableReason(window, target: target), sourceSize: window.frame.size,
+                isCurrentWindow: id == currentWindowID)
         }
         var offerPermission = false
         if #available(macOS 14, *) { offerPermission = !CGPreflightScreenCaptureAccess() }
@@ -254,6 +258,7 @@ final class LayoutHelperManager {
     }
 
     private func unavailableReason(_ window: AccessibilityElement, target: CGRect) -> String? {
+        if LayoutHelperLayout.matches(window.frame, target) { return nil }
         if !window.isResizable() { return "This window cannot be resized" }
         if let minimum = window.minimumSize, minimum.width > target.width + 3 || minimum.height > target.height + 3 {
             return "Too large for this space"
@@ -266,6 +271,12 @@ final class LayoutHelperManager {
         guard availableWindows().contains(where: { $0.0 == id && $0.1 == window }) else { showNext(); return }
         let target = layout.target(for: layout.cells[currentCell])
         guard unavailableReason(window, target: target) == nil else { showNext(); return }
+        if LayoutHelperLayout.matches(window.frame, target) {
+            retained[window] = window.frame
+            window.bringToFront(force: true)
+            showNext()
+            return
+        }
         WindowSizeConstraints.shared.cancelPendingObservations()
         let sizeObservationGeneration = WindowSizeConstraints.shared.observationGeneration
         let original = window.frame

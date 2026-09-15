@@ -274,43 +274,65 @@ final class LayoutHelperPanel: LayoutHelperSurface {
         cards.first { $0.item.id == id }?.preview = image
     }
 
-    /// Presentation-only transforms leave the final layout and capture sizing
-    /// unchanged. All visible previews contract together around the viewport.
+    /// Each visible card settles independently while layout and hit testing
+    /// retain their final geometry. Input can finish every entrance immediately.
     func animatePresentation(excluding existingIDs: Set<CGWindowID> = [],
                              reduceMotion: Bool = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion) {
         finishPresentation()
+        let entering = cards.filter {
+            !existingIDs.contains($0.item.id) && $0.superview?.visibleRect.intersects($0.frame) == true
+        }
+        let largest = entering.map { sqrt($0.frame.width * $0.frame.height) }.max() ?? 1
+        let stagger = min(0.028, 0.1 / Double(max(1, entering.count - 1)))
         let start = CACurrentMediaTime()
-        for card in cards where !existingIDs.contains(card.item.id) {
-            guard let layer = card.layer, let document = card.superview,
-                  document.visibleRect.intersects(card.frame) else { continue }
+        for (index, card) in entering.enumerated() {
+            guard let layer = card.layer else { continue }
+            let weight = min(1, sqrt(card.frame.width * card.frame.height) / max(1, largest))
+            let cadence = CGFloat(index % 3) / 2
+            let duration = reduceMotion ? 0.083 : 0.24 + Double(weight) * 0.055 + Double(cadence) * 0.025
+            let delay = reduceMotion ? 0 : Double(index) * stagger
+            var animations: [CAAnimation] = []
             if !reduceMotion {
-                let scale: CGFloat = 1.18
-                let viewport = document.visibleRect
-                // Account for AppKit's layer anchor without changing its geometry.
-                // A shared viewport pivot also spreads the larger previews out,
-                // preserving the gaps as they settle into the panel.
-                let pivot = card.convert(NSPoint(x: viewport.midX, y: viewport.midY), from: document)
+                let scale: CGFloat = 0.96
                 let anchor = CGPoint(x: layer.bounds.minX + layer.bounds.width * layer.anchorPoint.x,
                                      y: layer.bounds.minY + layer.bounds.height * layer.anchorPoint.y)
                 var transform = CATransform3DMakeScale(scale, scale, 1)
-                transform.m41 = (anchor.x - pivot.x) * (scale - 1)
-                transform.m42 = (anchor.y - pivot.y) * (scale - 1)
-                let zoom = CABasicAnimation(keyPath: "transform")
-                zoom.fromValue = NSValue(caTransform3D: transform)
-                zoom.toValue = NSValue(caTransform3D: CATransform3DIdentity)
-                zoom.duration = 0.22
-                // Fast initial movement with a smooth, decelerating stop.
-                zoom.timingFunction = CAMediaTimingFunction(controlPoints: 0, 0, 0, 1)
-                zoom.beginTime = layer.convertTime(start, from: nil)
-                layer.add(zoom, forKey: "layoutHelperEntrance")
+                transform.m41 = (anchor.x - layer.bounds.midX) * (scale - 1)
+                transform.m42 = (anchor.y - layer.bounds.midY) * (scale - 1) - (12 + weight * 8 + cadence * 2)
+                let settle = CABasicAnimation(keyPath: "transform")
+                settle.fromValue = NSValue(caTransform3D: transform)
+                settle.toValue = NSValue(caTransform3D: CATransform3DIdentity)
+                settle.duration = duration
+                settle.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0.75, 0.25, 1)
+                animations.append(settle)
+
+                let shadow = CABasicAnimation(keyPath: "shadowRadius")
+                shadow.fromValue = 14 + weight * 6
+                shadow.toValue = layer.shadowRadius
+                shadow.duration = duration
+                shadow.timingFunction = settle.timingFunction
+                animations.append(shadow)
+                let depth = CABasicAnimation(keyPath: "shadowOffset")
+                depth.fromValue = NSValue(size: CGSize(width: 0, height: 10 + weight * 4))
+                depth.toValue = NSValue(size: layer.shadowOffset)
+                depth.duration = duration
+                depth.timingFunction = settle.timingFunction
+                animations.append(depth)
             }
             let fade = CABasicAnimation(keyPath: "opacity")
             fade.fromValue = 0
             fade.toValue = 1
-            fade.duration = 0.083
-            fade.timingFunction = CAMediaTimingFunction(name: .linear)
-            fade.beginTime = layer.convertTime(start, from: nil)
-            layer.add(fade, forKey: "layoutHelperEntranceOpacity")
+            fade.duration = reduceMotion ? duration : 0.1
+            fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            animations.append(fade)
+            let entrance = CAAnimationGroup()
+            entrance.animations = animations
+            entrance.duration = duration
+            entrance.beginTime = layer.convertTime(start + delay, from: nil)
+            // Hold the initial appearance during the stagger without timers or
+            // delayed callbacks that could outlive this panel.
+            entrance.fillMode = .backwards
+            layer.add(entrance, forKey: "layoutHelperEntrance")
         }
     }
 
@@ -415,9 +437,17 @@ private final class LayoutHelperCard: NSButton {
         setAccessibilityLabel(toolTip)
         setAccessibilityRole(.button)
         wantsLayer = true
-        layer?.shadowOpacity = 0
+        layer?.shadowColor = NSColor.black.cgColor
+        layer?.shadowOpacity = 0.12
+        layer?.shadowRadius = 4
+        layer?.shadowOffset = CGSize(width: 0, height: 2)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    override func layout() {
+        super.layout()
+        let radius = min(LayoutHelperAppearance.cornerRadius, min(bounds.width, bounds.height) / 2)
+        layer?.shadowPath = CGPath(roundedRect: bounds, cornerWidth: radius, cornerHeight: radius, transform: nil)
+    }
     override var acceptsFirstResponder: Bool { isEnabled }
     override func becomeFirstResponder() -> Bool {
         needsDisplay = true

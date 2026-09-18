@@ -2,9 +2,9 @@
 
 import Cocoa
 import Sparkle
-import ServiceManagement
 import os.log
 
+@main
 class AppDelegate: NSObject, NSApplicationDelegate {
 
     static let launcherAppId = "com.knollsoft.RectangleLauncher"
@@ -109,11 +109,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             if intLastVersion < 64 {
                 SnapAreaModel.instance.migrate()
-            }
-            if intLastVersion < 72 {
-                if #available(macOS 13, *) {
-                    SMLoginItemSetEnabled(AppDelegate.launcherAppId as CFString, false)
-                }
             }
         } else {
             Defaults.installVersion.value = currentVersion
@@ -293,31 +288,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func checkLaunchOnLogin() {
-        if #available(macOS 13.0, *) {
-            if Defaults.launchOnLogin.enabled, !LaunchOnLogin.isEnabled {
-                LaunchOnLogin.isEnabled = true
-            }
-        } else {
-            let running = NSWorkspace.shared.runningApplications
-            let isRunning = !running.filter({$0.bundleIdentifier == AppDelegate.launcherAppId}).isEmpty
-            if isRunning {
-                let killNotification = Notification.Name("killLauncher")
-                DistributedNotificationCenter.default().post(name: killNotification, object: Bundle.main.bundleIdentifier!)
-            }
-            if !Defaults.SUHasLaunchedBefore {
-                Defaults.launchOnLogin.enabled = true
-            }
-            
-            // Even if we are already set up to launch on login, setting it again since macOS can be buggy with this type of launch on login.
-            if Defaults.launchOnLogin.enabled {
-                let smLoginSuccess = SMLoginItemSetEnabled(AppDelegate.launcherAppId as CFString, true)
-                if !smLoginSuccess {
-                    if #available(OSX 10.12, *) {
-                        os_log("Unable to enable launch at login. Attempting one more time.", type: .info)
-                    }
-                    SMLoginItemSetEnabled(AppDelegate.launcherAppId as CFString, true)
-                }
-            }
+        if Defaults.launchOnLogin.enabled, !LaunchOnLogin.isEnabled {
+            LaunchOnLogin.isEnabled = true
         }
     }
     
@@ -406,7 +378,9 @@ extension AppDelegate: NSMenuDelegate {
             guard let displayName = action.displayName else { continue }
             let newMenuItem = NSMenuItem(title: displayName, action: #selector(executeMenuWindowAction), keyEquivalent: "")
             newMenuItem.representedObject = action
-
+            if #available(macOS 27.0, *) {
+                newMenuItem.preferredImageVisibility = .visible
+            }
             if !showAllActions, let category = action.category {
                 // When additional sizes are off, keep Thirds and Size as flat items
                 if submenuOnlyWhenAdditional.contains(category) && !showAdditional {

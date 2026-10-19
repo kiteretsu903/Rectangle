@@ -13,6 +13,9 @@ final class WindowPlacementCoordinator {
     final class Cancellation {
         private let lock = NSLock()
         private var cancelled = false
+        private var rollback = false
+        func requestRollback() { lock.lock(); rollback = true; lock.unlock() }
+        var rollbackRequested: Bool { lock.lock(); defer { lock.unlock() }; return rollback }
         var timer: Timer?
         var onCancel: (() -> Void)?
         func cancel() {

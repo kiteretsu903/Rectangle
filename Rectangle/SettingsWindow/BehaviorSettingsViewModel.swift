@@ -230,6 +230,25 @@ final class BehaviorSettingsViewModel {
     }
 
 
+    var windowDividerEnhanced = false {
+        didSet {
+            guard oldValue != windowDividerEnhanced else { return }
+            Defaults.windowDividerEnhanced.enabled = windowDividerEnhanced
+            WindowDividerManager.shared.interrupt(animated: false)
+            if windowDividerEnhanced && !reloadingDefaults {
+                WindowCapturePermission.guideIfNeeded(for: .windowDivider, onDecline: { Defaults.windowDividerEnhanced.enabled = false }) { [weak self] in
+                    self?.windowDividerEnhanced = Defaults.windowDividerEnhanced.enabled
+                }
+            }
+        }
+    }
+    var windowDivider = false {
+        didSet {
+            Defaults.windowDivider.enabled = windowDivider
+            WindowDividerManager.shared.clear()
+        }
+    }
+
     private var aboutTodoWindowController: NSWindowController?
     
     // MARK: - Initialization
@@ -280,6 +299,8 @@ final class BehaviorSettingsViewModel {
         self.selectedVSplitPreset = CycleSize.matching(percentValue: vRatio)
         self.showMinimumWindowSizeWarning = Defaults.showMinimumWindowSizeWarning.userEnabled
         self.fitBesideSnappedWindows = Defaults.fitBesideSnappedWindows.enabled
+        windowDivider = Defaults.windowDivider.enabled
+        windowDividerEnhanced = Defaults.windowDividerEnhanced.enabled
         
         layoutHelper = Defaults.layoutHelper.userEnabled
         layoutHelperKeyboard = Defaults.layoutHelperKeyboard.enabled
@@ -364,6 +385,8 @@ final class BehaviorSettingsViewModel {
         self.selectedVSplitPreset = CycleSize.matching(percentValue: vRatio)
         self.showMinimumWindowSizeWarning = Defaults.showMinimumWindowSizeWarning.userEnabled
         self.fitBesideSnappedWindows = Defaults.fitBesideSnappedWindows.enabled
+        windowDivider = Defaults.windowDivider.enabled
+        windowDividerEnhanced = Defaults.windowDividerEnhanced.enabled
     }
     
     // MARK: - Cycle Sizes Binding Helper

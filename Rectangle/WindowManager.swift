@@ -12,6 +12,7 @@ class WindowManager {
     private var executionID = 0
     private var fittingWindowID: CGWindowID?
     private var interruptedFitWindowID: CGWindowID?
+    private var dividerHandoffID = 0
     
     init(screenDetection: ScreenDetection = ScreenDetection(),
          windowAnimator: WindowAnimator = WindowAnimator.shared) {
@@ -63,6 +64,16 @@ class WindowManager {
     func execute(_ parameters: ExecutionParameters) {
         var acceptedHelperPrefetch = false
         defer { if !acceptedHelperPrefetch { LayoutHelperManager.shared.cancelPrefetch() } }
+        dividerHandoffID += 1
+        let handoff = dividerHandoffID
+        WindowDividerManager.shared.interrupt()
+        if WindowDividerManager.shared.hasPendingPlacement {
+            windowAnimator.afterPendingWrites(cancellation: parameters.cancellation) { [weak self] in
+                guard let self, self.dividerHandoffID == handoff else { parameters.cancellation?(); return }
+                self.execute(parameters)
+            }
+            return
+        }
         var completionDeferred = false
         defer { if !completionDeferred { parameters.completion?() } }
         hideSizeConstraintWarning()
@@ -512,6 +523,10 @@ class WindowManager {
 
         if result.allowsFitPairing { SnappedWindowFitSession.shared.record(result: result, frame: resultingRect) }
         LayoutHelperManager.shared.didSnap(result: result, frame: resultingRect)
+        if !result.isFixedSize {
+            WindowDividerManager.shared.record(result.windowElement, id: result.windowId, frame: resultingRect,
+                screen: calcResult.screen, eligibilityConfirmed: true)
+        }
         let requestedRect = calcResult.rect.screenFlipped
         var evidence: [String: Any] = ["action": calcResult.resultingAction.name,
                                       "achieved": [resultingRect.minX, resultingRect.minY, resultingRect.width, resultingRect.height],

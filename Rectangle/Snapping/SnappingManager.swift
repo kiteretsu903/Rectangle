@@ -294,6 +294,7 @@ class SnappingManager {
     
     func handle(event: NSEvent) {
         if LayoutHelperManager.shared.containsPointerEvent(event) { return }
+        if WindowDividerManager.shared.containsPointerEvent(event) { return }
         switch event.type {
         case .keyDown:
             if box?.waitingForPlacement == true { box?.orderOut(nil) }
@@ -305,6 +306,7 @@ class SnappingManager {
         case .leftMouseDown:
             SnappedWindowFitSession.shared.endPreview()
             LayoutHelperManager.shared.cancel()
+            WindowDividerManager.shared.handleInterruption(event)
             beginNativeDrag()
             WindowAnimator.shared.finishForNewDrag()
             initialCursorLocation = event.cgEvent?.location

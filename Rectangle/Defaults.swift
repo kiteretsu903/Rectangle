@@ -35,6 +35,8 @@ class Defaults {
     static let layoutHelperKeyboard = BoolDefault(key: "layoutHelperKeyboard")
     static let layoutHelperCloseButton = BoolDefault(key: "layoutHelperCloseButton", defaultValue: true)
     static let layoutHelperDenseGrids = BoolDefault(key: "layoutHelperDenseGrids")
+    static let windowDivider = BoolDefault(key: "windowDivider")
+    static let windowDividerEnhanced = BoolDefault(key: "windowDividerEnhanced")
     static let cooperativeCornerResize = BoolDefault(key: "cooperativeCornerResize")
     static let experimentalWindowAnimations = BoolDefault(key: "experimentalWindowAnimations")
     static let showMinimumWindowSizeWarning = OptionalBoolDefault(key: "showMinimumWindowSizeWarning")
@@ -172,6 +174,7 @@ class Defaults {
         cooperativeCornerResize,
         fitBesideSnappedWindows,
         layoutHelper, layoutHelperKeyboard, layoutHelperCloseButton, layoutHelperDenseGrids,
+        windowDivider, windowDividerEnhanced,
         experimentalWindowAnimations,
         allowAnyShortcut,
         windowSnapping,

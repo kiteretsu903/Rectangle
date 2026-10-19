@@ -71,6 +71,7 @@ class Defaults {
     static let footprintBorderWidth = FloatDefault(key: "footprintBorderWidth", defaultValue: 2)
     static let footprintFade = OptionalBoolDefault(key: "footprintFade")
     static let footprintColor = JSONDefault<CodableColor>(key: "footprintColor")
+    static let liquidGlassForBlur = BoolDefault(key: "liquidGlassForBlur")
     static let footprintBlur = BoolDefault(key: "footprintBlur")
     static let blurAppearance = IntEnumDefault<BlurAppearance>(key: "blurAppearance", defaultValue: .system)
 
@@ -188,6 +189,7 @@ class Defaults {
         footprintFade,
         footprintColor,
         footprintBlur,
+        liquidGlassForBlur,
         blurAppearance,
         SUEnableAutomaticChecks,
         todo,

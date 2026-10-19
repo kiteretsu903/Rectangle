@@ -188,10 +188,54 @@ final class BehaviorSettingsViewModel {
     var showCombinedDisplayMode: Bool { !NSScreen.screensHaveSeparateSpaces }
     var stageCapable: Bool { StageUtil.stageCapable }
     
+    private var reloadingDefaults = false
+
+    var layoutHelper = false {
+        didSet {
+            guard oldValue != layoutHelper else { return }
+            Defaults.layoutHelper.enabled = layoutHelper
+            LayoutHelperManager.shared.cancel()
+            if layoutHelper && !reloadingDefaults { WindowCapturePermission.guideIfNeeded { [weak self] in self?.refreshPreviewPermission() } }
+        }
+    }
+
+    var layoutHelperKeyboard = false {
+        didSet {
+            Defaults.layoutHelperKeyboard.enabled = layoutHelperKeyboard
+            LayoutHelperManager.shared.cancel()
+        }
+    }
+    var layoutHelperCloseButton = true {
+        didSet {
+            guard !reloadingDefaults, oldValue != layoutHelperCloseButton else { return }
+            Defaults.layoutHelperCloseButton.enabled = layoutHelperCloseButton
+            LayoutHelperManager.shared.cancel()
+        }
+    }
+    var layoutHelperDenseGrids = false {
+        didSet {
+            Defaults.layoutHelperDenseGrids.enabled = layoutHelperDenseGrids
+            LayoutHelperManager.shared.cancel()
+        }
+    }
+    var stageManagerEnabled = false
+    var previewPermissionAllowed = false
+    private var stageObservation: NSObject?
+    private var previewPermissionObservers: [NSObjectProtocol] = []
+
+    func refreshPreviewPermission() { previewPermissionAllowed = WindowCapturePermission.previewsAllowed }
+    func enablePreviews() {
+        LayoutHelperManager.shared.cancel()
+        WindowCapturePermission.guideIfNeeded { [weak self] in self?.refreshPreviewPermission() }
+    }
+
+
     private var aboutTodoWindowController: NSWindowController?
     
     // MARK: - Initialization
     init() {
+        reloadingDefaults = true
+        defer { reloadingDefaults = false }
         
         self.subsequentExecutionMode = Defaults.subsequentExecutionMode.value
         let isCycleChanged = Defaults.cycleSizesIsChanged.enabled
@@ -237,10 +281,24 @@ final class BehaviorSettingsViewModel {
         self.showMinimumWindowSizeWarning = Defaults.showMinimumWindowSizeWarning.userEnabled
         self.fitBesideSnappedWindows = Defaults.fitBesideSnappedWindows.enabled
         
+        layoutHelper = Defaults.layoutHelper.userEnabled
+        layoutHelperKeyboard = Defaults.layoutHelperKeyboard.enabled
+        layoutHelperCloseButton = Defaults.layoutHelperCloseButton.enabled
+        layoutHelperDenseGrids = Defaults.layoutHelperDenseGrids.enabled
+        stageManagerEnabled = StageUtil.stageCapable && StageUtil.stageEnabled
         setupObservers()
+        refreshPreviewPermission()
     }
     
     private func setupObservers() {
+        for name in [WindowCapturePermission.changed, NSApplication.didBecomeActiveNotification] {
+            previewPermissionObservers.append(NotificationCenter.default.addObserver(forName: name,
+                object: nil, queue: .main) { [weak self] _ in self?.refreshPreviewPermission() })
+        }
+        stageObservation = StageUtil.observeEnabled { [weak self] in
+            self?.stageManagerEnabled = StageUtil.stageCapable && StageUtil.stageEnabled
+        }
+
         Notification.Name.configImported.onPost { [weak self] _ in
             self?.reloadFromDefaults()
         }
@@ -256,6 +314,12 @@ final class BehaviorSettingsViewModel {
     }
     
     func reloadFromDefaults() {
+        reloadingDefaults = true
+        defer { reloadingDefaults = false }
+        layoutHelper = Defaults.layoutHelper.userEnabled
+        layoutHelperKeyboard = Defaults.layoutHelperKeyboard.enabled
+        layoutHelperCloseButton = Defaults.layoutHelperCloseButton.enabled
+        layoutHelperDenseGrids = Defaults.layoutHelperDenseGrids.enabled
         self.subsequentExecutionMode = Defaults.subsequentExecutionMode.value
         let isCycleChanged = Defaults.cycleSizesIsChanged.enabled
         self.selectedCycleSizes = isCycleChanged ? Defaults.selectedCycleSizes.value : CycleSize.defaultSizes

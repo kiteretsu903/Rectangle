@@ -3,6 +3,23 @@
 import Cocoa
 
 class Defaults {
+    static let legacyLayoutHelperKeys = [
+        "layoutHelper": "snapAssist",
+        "layoutHelperKeyboard": "snapAssistKeyboard",
+        "layoutHelperDenseGrids": "snapAssistDenseGrids"
+    ]
+
+    static func migrateLayoutHelperPreferences(in store: UserDefaults = .standard) {
+        for (current, legacy) in legacyLayoutHelperKeys {
+            if store.object(forKey: current) == nil, let value = store.object(forKey: legacy) {
+                store.set(value, forKey: current)
+            }
+            store.removeObject(forKey: legacy)
+        }
+    }
+
+
+
     static let launchOnLogin = BoolDefault(key: "launchOnLogin")
     static let disabledApps = JSONDefault<Set<String>>(key: "disabledApps")
     static let hideMenuBarIcon = BoolDefault(key: "hideMenubarIcon")
@@ -14,6 +31,10 @@ class Defaults {
     static let cycleSizesIsChanged = BoolDefault(key: "cycleSizesIsChanged")
     static let cornerCycleExpansionAxis = IntEnumDefault<CornerCycleExpansionAxis>(key: "cornerCycleExpansionAxis", defaultValue: .horizontal)
     static let fitBesideSnappedWindows = BoolDefault(key: "fitBesideSnappedWindows")
+    static let layoutHelper = OptionalBoolDefault(key: "layoutHelper")
+    static let layoutHelperKeyboard = BoolDefault(key: "layoutHelperKeyboard")
+    static let layoutHelperCloseButton = BoolDefault(key: "layoutHelperCloseButton", defaultValue: true)
+    static let layoutHelperDenseGrids = BoolDefault(key: "layoutHelperDenseGrids")
     static let cooperativeCornerResize = BoolDefault(key: "cooperativeCornerResize")
     static let experimentalWindowAnimations = BoolDefault(key: "experimentalWindowAnimations")
     static let showMinimumWindowSizeWarning = OptionalBoolDefault(key: "showMinimumWindowSizeWarning")
@@ -150,6 +171,7 @@ class Defaults {
         cornerCycleExpansionAxis,
         cooperativeCornerResize,
         fitBesideSnappedWindows,
+        layoutHelper, layoutHelperKeyboard, layoutHelperCloseButton, layoutHelperDenseGrids,
         experimentalWindowAnimations,
         allowAnyShortcut,
         windowSnapping,
@@ -285,9 +307,9 @@ class BoolDefault: Default {
         }
     }
     
-    init(key: String) {
+    init(key: String, defaultValue: Bool = false) {
         self.key = key
-        enabled = UserDefaults.standard.bool(forKey: key)
+        enabled = UserDefaults.standard.object(forKey: key) == nil ? defaultValue : UserDefaults.standard.bool(forKey: key)
         initialized = true
     }
     

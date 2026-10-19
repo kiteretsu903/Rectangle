@@ -293,15 +293,18 @@ class SnappingManager {
     }
     
     func handle(event: NSEvent) {
+        if LayoutHelperManager.shared.containsPointerEvent(event) { return }
         switch event.type {
         case .keyDown:
             if box?.waitingForPlacement == true { box?.orderOut(nil) }
             guard event.keyCode == 53, nativeGesture.held else { return }
             nativeGesture.cancel()
+            LayoutHelperManager.shared.cancelPrefetch()
             currentSnapArea = nil
             box?.orderOut(nil)
         case .leftMouseDown:
             SnappedWindowFitSession.shared.endPreview()
+            LayoutHelperManager.shared.cancel()
             beginNativeDrag()
             WindowAnimator.shared.finishForNewDrag()
             initialCursorLocation = event.cgEvent?.location
@@ -402,6 +405,7 @@ class SnappingManager {
                 retryNativeSizeRestore(cursor: event.cgEvent?.location)
                 if !canSnap(event) {
                     if currentSnapArea != nil {
+                        LayoutHelperManager.shared.cancelPrefetch()
                         box?.orderOut(nil)
                         currentSnapArea = nil
                     }
@@ -422,12 +426,15 @@ class SnappingManager {
                     let currentWindow = Window(id: windowId, rect: currentRect)
                     
                     if let newBoxRect = getBoxRect(hotSpot: snapArea, currentWindow: currentWindow) {
+                        let anchor = getBoxRect(hotSpot: snapArea, currentWindow: currentWindow, applyingGaps: false) ?? newBoxRect
+                        LayoutHelperManager.shared.prefetch(on: snapArea.screen, action: snapArea.action, anchor: anchor, excluding: windowId)
                         showSnapPreview(in: newBoxRect, snapArea: snapArea)
                     }
                     
                     currentSnapArea = snapArea
                 } else {
                     if currentSnapArea != nil {
+                        LayoutHelperManager.shared.cancelPrefetch()
                         box?.orderOut(nil)
                         currentSnapArea = nil
                     }
@@ -658,7 +665,7 @@ class SnappingManager {
             let gapsApplicable = hotSpot.action.gapsApplicable
             var target = rectResult.rect
             
-            if Defaults.gapSize.value > 0, gapsApplicable != .none {
+            if applyingGaps, Defaults.gapSize.value > 0, gapsApplicable != .none {
                 let gapSharedEdges = rectResult.subAction?.gapSharedEdge ?? hotSpot.action.gapSharedEdge
 
                 target = GapCalculation.applyGaps(rectResult.rect, dimension: gapsApplicable, sharedEdges: gapSharedEdges, gapSize: Defaults.gapSize.value, skipTopGap: Defaults.skipGapTopEdge.enabled)

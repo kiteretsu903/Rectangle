@@ -226,6 +226,7 @@ final class LayoutHelperManager {
         switch source {
         case .dragToSnap: return true
         case .keyboardShortcut, .menuItem: return Defaults.layoutHelperKeyboard.enabled
+        case .trackpadGesture: return Defaults.layoutHelperTrackpad.enabled
         default: return false
         }
     }

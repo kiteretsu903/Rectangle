@@ -11525,7 +11525,7 @@ final class LayoutHelperShortcutEntryTests: XCTestCase {
         let router = ShortcutManager(windowManager: windowManager, bindingStore: Bindings(),
             notificationCenter: NotificationCenter(), workspaceNotificationCenter: NotificationCenter(),
             shortcutsProvider: { [:] }, activeStateProvider: { false }, todoSessionStateChanged: { _ in })
-        for source: ExecutionSource in [.keyboardShortcut, .menuItem, .dragToSnap] {
+        for source: ExecutionSource in [.keyboardShortcut, .menuItem, .dragToSnap, .trackpadGesture] {
             let token = LayoutHelperManager.shared.cancel()
             let parameters = ExecutionParameters(.leftHalf, source: source)
             router.windowActionTriggered(notification: NSNotification(name: WindowAction.leftHalf.notificationName, object: parameters))
@@ -12682,4 +12682,46 @@ private final class TrackpadCaptureTestDriver: TrackpadScrollEventTapDriving {
     func reenable() -> Bool { isEnabled = true; return true }
     func recreate(filter: @escaping @Sendable (TrackpadScrollStreamPhase) -> Bool) -> Bool { start(filter: filter) }
     func stop() { isEnabled = false }
+}
+
+
+@MainActor
+final class LayoutHelperTrackpadEntryTests: XCTestCase {
+    func testTrackpadAndKeyboardPreferencesControlTheirOwnSources() {
+        let keyboard = Defaults.layoutHelperKeyboard.enabled
+        let trackpad = Defaults.layoutHelperTrackpad.enabled
+        defer {
+            Defaults.layoutHelperKeyboard.enabled = keyboard
+            Defaults.layoutHelperTrackpad.enabled = trackpad
+        }
+        for keyboardEnabled in [false, true] {
+            for trackpadEnabled in [false, true] {
+                Defaults.layoutHelperKeyboard.enabled = keyboardEnabled
+                Defaults.layoutHelperTrackpad.enabled = trackpadEnabled
+                XCTAssertEqual(LayoutHelperManager.allows(.trackpadGesture), trackpadEnabled)
+                XCTAssertEqual(LayoutHelperManager.allows(.keyboardShortcut), keyboardEnabled)
+                XCTAssertEqual(LayoutHelperManager.allows(.menuItem), keyboardEnabled)
+                XCTAssertTrue(LayoutHelperManager.allows(.dragToSnap))
+                XCTAssertFalse(LayoutHelperManager.allows(.url))
+                XCTAssertFalse(LayoutHelperManager.allows(.titleBar))
+            }
+        }
+    }
+
+    func testTrackpadPreferenceSurvivesSettingsReloadAndExport() {
+        let saved = Defaults.array.map { ($0, $0.toCodable()) }
+        defer { saved.forEach { $0.0.load(from: $0.1) }; LayoutHelperManager.shared.cancel() }
+        Defaults.layoutHelperTrackpad.enabled = false
+        let model = BehaviorSettingsViewModel()
+        XCTAssertFalse(model.layoutHelperTrackpad)
+        model.layoutHelperTrackpad = true
+        XCTAssertTrue(Defaults.layoutHelperTrackpad.enabled)
+        let exported = Defaults.layoutHelperTrackpad.toCodable()
+        model.layoutHelperTrackpad = false
+        Defaults.layoutHelperTrackpad.load(from: exported)
+        model.reloadFromDefaults()
+        XCTAssertTrue(model.layoutHelperTrackpad)
+        XCTAssertTrue(LayoutHelperManager.allows(.trackpadGesture))
+        XCTAssertTrue(Defaults.array.contains { $0.key == Defaults.layoutHelperTrackpad.key })
+    }
 }

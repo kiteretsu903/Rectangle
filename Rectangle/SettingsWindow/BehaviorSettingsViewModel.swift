@@ -199,6 +199,14 @@ final class BehaviorSettingsViewModel {
         }
     }
 
+    var layoutHelperTrackpad = true {
+        didSet {
+            guard !reloadingDefaults, oldValue != layoutHelperTrackpad else { return }
+            Defaults.layoutHelperTrackpad.enabled = layoutHelperTrackpad
+            LayoutHelperManager.shared.cancel()
+        }
+    }
+
     var layoutHelperKeyboard = false {
         didSet {
             Defaults.layoutHelperKeyboard.enabled = layoutHelperKeyboard
@@ -304,6 +312,7 @@ final class BehaviorSettingsViewModel {
         
         layoutHelper = Defaults.layoutHelper.userEnabled
         layoutHelperKeyboard = Defaults.layoutHelperKeyboard.enabled
+        layoutHelperTrackpad = Defaults.layoutHelperTrackpad.enabled
         layoutHelperCloseButton = Defaults.layoutHelperCloseButton.enabled
         layoutHelperDenseGrids = Defaults.layoutHelperDenseGrids.enabled
         stageManagerEnabled = StageUtil.stageCapable && StageUtil.stageEnabled
@@ -339,6 +348,7 @@ final class BehaviorSettingsViewModel {
         defer { reloadingDefaults = false }
         layoutHelper = Defaults.layoutHelper.userEnabled
         layoutHelperKeyboard = Defaults.layoutHelperKeyboard.enabled
+        layoutHelperTrackpad = Defaults.layoutHelperTrackpad.enabled
         layoutHelperCloseButton = Defaults.layoutHelperCloseButton.enabled
         layoutHelperDenseGrids = Defaults.layoutHelperDenseGrids.enabled
         self.subsequentExecutionMode = Defaults.subsequentExecutionMode.value

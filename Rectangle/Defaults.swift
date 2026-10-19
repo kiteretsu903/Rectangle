@@ -33,6 +33,7 @@ class Defaults {
     static let fitBesideSnappedWindows = BoolDefault(key: "fitBesideSnappedWindows")
     static let layoutHelper = OptionalBoolDefault(key: "layoutHelper")
     static let layoutHelperKeyboard = BoolDefault(key: "layoutHelperKeyboard")
+    static let layoutHelperTrackpad = BoolDefault(key: "layoutHelperTrackpad", defaultValue: true)
     static let layoutHelperCloseButton = BoolDefault(key: "layoutHelperCloseButton", defaultValue: true)
     static let layoutHelperDenseGrids = BoolDefault(key: "layoutHelperDenseGrids")
     static let windowDivider = BoolDefault(key: "windowDivider")
@@ -173,7 +174,7 @@ class Defaults {
         cornerCycleExpansionAxis,
         cooperativeCornerResize,
         fitBesideSnappedWindows,
-        layoutHelper, layoutHelperKeyboard, layoutHelperCloseButton, layoutHelperDenseGrids,
+        layoutHelper, layoutHelperKeyboard, layoutHelperTrackpad, layoutHelperCloseButton, layoutHelperDenseGrids,
         windowDivider, windowDividerEnhanced,
         experimentalWindowAnimations,
         allowAnyShortcut,

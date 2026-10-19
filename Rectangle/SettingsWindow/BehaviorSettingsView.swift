@@ -489,6 +489,9 @@ struct BehaviorSettingsView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             Toggle("Keyboard and menu snaps", isOn: $viewModel.layoutHelperKeyboard)
                                 .disabled(!viewModel.layoutHelper || viewModel.stageManagerEnabled)
+                            Toggle("Trackpad gestures", isOn: $viewModel.layoutHelperTrackpad)
+                                .disabled(!viewModel.layoutHelper || viewModel.stageManagerEnabled || !TrackpadGestureManager.shared.settings.enabled)
+                                .accessibilityIdentifier("layoutHelperTrackpad")
                             Toggle("Grids with eight or more cells", isOn: $viewModel.layoutHelperDenseGrids)
                                 .disabled(!viewModel.layoutHelper || viewModel.stageManagerEnabled)
                         }

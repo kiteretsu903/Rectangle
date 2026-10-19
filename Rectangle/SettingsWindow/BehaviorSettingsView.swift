@@ -421,6 +421,10 @@ struct BehaviorSettingsView: View {
                 }
             }
         }
+        .formStyle(.grouped)
+        .frame(width: 500)
+        .animation(.easeInOut(duration: 0.2), value: viewModel.todoEnabled)
+        .animation(.easeInOut(duration: 0.2), value: viewModel.subsequentExecutionMode)
     }
 
     private var adjacentWindowsSection: some View {
@@ -428,6 +432,8 @@ struct BehaviorSettingsView: View {
             CustomDisclosureGroup {
                 VStack(alignment: .leading, spacing: 12) {
                     Divider()
+                    Toggle("Fit remaining space", isOn: $viewModel.fitBesideSnappedWindows)
+                        .accessibilityIdentifier("fitBesideSnappedWindows")
                     VStack(alignment: .leading, spacing: 4) {
                         Toggle("Drag dividers to resize adjacent windows", isOn: $viewModel.windowDivider)
                             .accessibilityIdentifier("windowDivider")
@@ -444,30 +450,6 @@ struct BehaviorSettingsView: View {
                     }
                     .padding(.leading, 20)
                     .disabled(!viewModel.windowDivider || !WindowCapturePermission.previewsSupported)
-                }
-                .padding(.leading, 12)
-            } label: {
-                Label {
-                    Text("Adjacent Windows")
-                } icon: {
-                    Image(systemName: "rectangle.grid.1x2")
-                        .rotationEffect(.degrees(90))
-                }
-            }
-        }
-        .formStyle(.grouped)
-        .frame(width: 500)
-        .animation(.easeInOut(duration: 0.2), value: viewModel.todoEnabled)
-        .animation(.easeInOut(duration: 0.2), value: viewModel.subsequentExecutionMode)
-    }
-
-    private var adjacentWindowsSection: some View {
-        Section {
-            CustomDisclosureGroup {
-                VStack(alignment: .leading, spacing: 12) {
-                    Divider()
-                    Toggle("Fit remaining space", isOn: $viewModel.fitBesideSnappedWindows)
-                        .accessibilityIdentifier("fitBesideSnappedWindows")
                 }
                 .padding(.leading, 12)
             } label: {
